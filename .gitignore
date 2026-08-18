@@ -1,0 +1,67 @@
+# Spring Boot generated help file
+HELP.md
+
+# Maven build output
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+
+# Local Spring configuration that may contain secrets
+application-local.properties
+application-local.yml
+application-local.yaml
+
+# Logs and JVM crash reports
+*.log
+hs_err_pid*
+replay_pid*
+
+# Spring Tool Suite / Eclipse
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Visual Studio Code
+.vscode/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~

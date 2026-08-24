@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Record microphone audio and convert it to text.">
+    <title>Speech to Text</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/app.js" defer></script>
+</head>
+<body>
+<div class="page-grid" aria-hidden="true"></div>
+
+<header class="topbar shell">
+    <a class="brand" href="/" aria-label="Speech-to-text home">
+        <span class="brand-signal" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i>
+        </span>
+        <span>STT</span>
+    </a>
+
+    <p id="server-status" class="server-status" role="status" aria-live="polite">
+        <span class="status-light" aria-hidden="true"></span>
+        <span class="status-copy">Checking server</span>
+    </p>
+</header>
+
+<main class="shell workspace">
+    <section class="introduction" aria-labelledby="page-title">
+        <p class="section-code"><span>00</span> Audio transcription</p>
+        <h1 id="page-title">Speech to <em>text.</em></h1>
+        <p class="summary">Record audio from your microphone and convert it into editable text.</p>
+
+        <dl class="system-details">
+            <div><dt>Input</dt><dd>Microphone</dd></div>
+            <div><dt>Maximum</dt><dd>01:00</dd></div>
+            <div><dt>Output</dt><dd>Text</dd></div>
+        </dl>
+    </section>
+
+    <section class="recorder-panel cut-corner" aria-labelledby="recorder-title">
+        <header class="panel-header">
+            <div>
+                <p class="section-code"><span>01</span> Input</p>
+                <h2 id="recorder-title">Microphone</h2>
+            </div>
+            <p class="panel-state"><span></span> Ready</p>
+        </header>
+
+        <div class="recording-display">
+            <div class="meter meter-one" aria-hidden="true"></div>
+            <div class="meter meter-two" aria-hidden="true"></div>
+            <button id="record-button" class="record-button" type="button" disabled>
+                <span class="record-centre" aria-hidden="true"></span>
+                <span class="visually-hidden">Start recording</span>
+            </button>
+            <div class="level-bars" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+        </div>
+
+        <footer class="recorder-footer">
+            <p>Microphone setup pending</p>
+            <time id="recording-timer" datetime="PT0S">00:00.00</time>
+        </footer>
+    </section>
+
+    <section class="transcript-panel cut-corner" aria-labelledby="transcript-title">
+        <header class="panel-header">
+            <div>
+                <p class="section-code"><span>02</span> Output</p>
+                <h2 id="transcript-title">Transcript</h2>
+            </div>
+            <button class="copy-button" type="button" disabled>Copy</button>
+        </header>
+
+        <div class="transcript-output" aria-live="polite">
+            <div class="output-marker" aria-hidden="true">+</div>
+            <p>The transcription will appear here.</p>
+            <span class="character-count">0 characters</span>
+        </div>
+    </section>
+</main>
+
+<footer class="page-footer shell">
+    <p>COMP3011 Speech-to-Text Project</p>
+    <p>Local session</p>
+</footer>
+</body>
+</html>

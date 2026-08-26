@@ -267,11 +267,13 @@ h1 em {
     text-transform: uppercase;
 }
 
-.panel-state span {
+.panel-state-light {
     width: 0.4rem;
     height: 0.4rem;
     border-radius: 50%;
     background: var(--signal);
+    box-shadow: 0 0 0.7rem rgba(217, 255, 101, 0.55);
+    transition: background-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 /* Recorder */
@@ -286,6 +288,7 @@ h1 em {
         linear-gradient(90deg, transparent 49.8%, var(--line-soft) 50%, transparent 50.2%),
         linear-gradient(transparent 49.8%, var(--line-soft) 50%, transparent 50.2%),
         radial-gradient(circle at center, rgba(217, 255, 101, 0.09), transparent 48%);
+    transition: background 0.3s ease;
 }
 
 .meter {
@@ -293,6 +296,7 @@ h1 em {
     border: 1px solid var(--line);
     border-radius: 50%;
     pointer-events: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .meter::before {
@@ -305,6 +309,7 @@ h1 em {
     border-radius: 50%;
     background: var(--signal);
     box-shadow: 0 0 1rem rgba(217, 255, 101, 0.8);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .meter-one {
@@ -335,6 +340,15 @@ h1 em {
         0 0 0 1.1rem rgba(217, 255, 101, 0.035),
         0 0 4rem rgba(217, 255, 101, 0.12);
     cursor: not-allowed;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.record-button:not(:disabled) {
+    cursor: pointer;
+}
+
+.record-button:not(:disabled):hover {
+    transform: scale(1.04);
 }
 
 .record-centre {
@@ -343,6 +357,7 @@ h1 em {
     border-radius: 50%;
     background: var(--danger);
     box-shadow: 0 0 2.2rem rgba(255, 101, 74, 0.55);
+    transition: border-radius 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .level-bars {
@@ -354,6 +369,7 @@ h1 em {
     align-items: flex-end;
     gap: 4px;
     opacity: 0.65;
+    transition: opacity 0.25s ease;
 }
 
 .level-bars i:nth-child(1) { height: 20%; }
@@ -363,6 +379,68 @@ h1 em {
 .level-bars i:nth-child(5) { height: 65%; }
 .level-bars i:nth-child(6) { height: 40%; }
 .level-bars i:nth-child(7) { height: 25%; }
+
+.recorder-panel.is-recording .recording-display {
+    background:
+        linear-gradient(90deg, transparent 49.8%, var(--line-soft) 50%, transparent 50.2%),
+        linear-gradient(transparent 49.8%, var(--line-soft) 50%, transparent 50.2%),
+        radial-gradient(circle at center, rgba(255, 101, 74, 0.15), transparent 48%);
+}
+
+.recorder-panel.is-recording .panel-state,
+.recorder-panel.is-recording .recorder-footer p,
+.recorder-panel.is-recording .recorder-footer time {
+    color: var(--danger);
+}
+
+.recorder-panel.is-recording .panel-state-light {
+    background: var(--danger);
+    box-shadow: 0 0 1rem rgba(255, 101, 74, 0.9);
+    animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+.recorder-panel.is-recording .meter {
+    border-color: rgba(255, 101, 74, 0.35);
+    box-shadow: inset 0 0 1.5rem rgba(255, 101, 74, 0.04);
+}
+
+.recorder-panel.is-recording .meter-one { animation-duration: 7s; }
+.recorder-panel.is-recording .meter-two { animation-duration: 4.5s; }
+
+.recorder-panel.is-recording .meter::before {
+    background: var(--danger);
+    box-shadow: 0 0 1rem rgba(255, 101, 74, 0.9);
+}
+
+.recorder-panel.is-recording .record-button {
+    border-color: var(--danger);
+    box-shadow:
+        0 0 0 1.1rem rgba(255, 101, 74, 0.06),
+        0 0 4rem rgba(255, 101, 74, 0.3);
+}
+
+.recorder-panel.is-recording .record-centre {
+    border-radius: 0.45rem;
+    transform: scale(0.7);
+    box-shadow: 0 0 2.5rem rgba(255, 101, 74, 0.75);
+}
+
+.recorder-panel.is-recording .level-bars {
+    opacity: 1;
+}
+
+.recorder-panel.is-recording .level-bars i {
+    background: var(--danger);
+    transform-origin: bottom;
+    animation: recording-level 0.7s ease-in-out infinite alternate;
+}
+
+.recorder-panel.is-recording .level-bars i:nth-child(2) { animation-delay: -0.35s; }
+.recorder-panel.is-recording .level-bars i:nth-child(3) { animation-delay: -0.15s; }
+.recorder-panel.is-recording .level-bars i:nth-child(4) { animation-delay: -0.5s; }
+.recorder-panel.is-recording .level-bars i:nth-child(5) { animation-delay: -0.25s; }
+.recorder-panel.is-recording .level-bars i:nth-child(6) { animation-delay: -0.4s; }
+.recorder-panel.is-recording .level-bars i:nth-child(7) { animation-delay: -0.1s; }
 
 .recorder-footer {
     min-height: 3.5rem;
@@ -466,8 +544,21 @@ h1 em {
     to { transform: rotate(360deg); }
 }
 
+@keyframes status-pulse {
+    50% { opacity: 0.45; }
+}
+
+@keyframes recording-level {
+    from { transform: scaleY(0.4); }
+    to { transform: scaleY(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .meter { animation: none; }
+    .meter,
+    .recorder-panel.is-recording .panel-state-light,
+    .recorder-panel.is-recording .level-bars i {
+        animation: none;
+    }
 }
 
 @media (max-width: 820px) {

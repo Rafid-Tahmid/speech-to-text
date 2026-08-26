@@ -1,8 +1,12 @@
 const serverStatus = document.querySelector("#server-status");
 const statusCopy = serverStatus.querySelector(".status-copy");
+const recorderPanel = document.querySelector(".recorder-panel");
 const recordButton = document.querySelector("#record-button");
 const recordingTimer = document.querySelector("#recording-timer");
 const recorderStatus = document.querySelector(".recorder-footer p");
+const panelStateCopy = document.querySelector(".panel-state-copy");
+const recordButtonLabel = recordButton.querySelector(".visually-hidden"); //TITAN detect the stop control
+
 const MAX_RECORDING_MS = 5 * 60 * 1000;
 
 let timerInterval;
@@ -11,9 +15,17 @@ let microphoneStream;
 let mediaRecorder;
 let audioChunks = [];
 
+function setRecordingVisualState(isRecording) {
+    recorderPanel.classList.toggle("is-recording", isRecording);
+    recordButtonLabel.textContent = isRecording ? "Stop recording" : "Start recording";
+    recordButton.setAttribute("aria-pressed", String(isRecording));
+    panelStateCopy.textContent = isRecording ? "Recording" : "Ready";
+}
+
 if (navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window) { // checks browser-support mic
     recordButton.disabled = false;
     recorderStatus.textContent = "Ready";
+    setRecordingVisualState(false);
 }
 
 function updateRecordingTimer() {
@@ -74,6 +86,7 @@ recordButton.addEventListener("click", async () => {
         });
         mediaRecorder.addEventListener("stop", () => {
 			stopRecordingTimer();
+            setRecordingVisualState(false);
             const audioBlob = new Blob(audioChunks, {  //the completed recording made from all audioChunks
                 type: mediaRecorder.mimeType
             });
@@ -86,9 +99,12 @@ recordButton.addEventListener("click", async () => {
 
         mediaRecorder.start();
 		startRecordingTimer();
+        setRecordingVisualState(true);
         recorderStatus.textContent = "Recording";
     } catch (error) {
 		stopRecordingTimer();
+        setRecordingVisualState(false);
+        panelStateCopy.textContent = "Unavailable";
         console.error("Could not start recording", error);
         recorderStatus.textContent = "Microphone unavailable";
     }

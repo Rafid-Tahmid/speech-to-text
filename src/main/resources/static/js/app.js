@@ -6,38 +6,56 @@ if (navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window) { // If t
     recordButton.disabled = false;
 }
 
+
 const recorderStatus = document.querySelector(".recorder-footer p");
-  let microphoneStream;
-  let mediaRecorder;
-  
-  recordButton.addEventListener("click", async () => {
-      if (mediaRecorder?.state === "recording") {
-          mediaRecorder.stop();
-          return;
-      }
-	  try {
-	           microphoneStream =
-	               await navigator.mediaDevices.getUserMedia({ audio: true });
 
-	           mediaRecorder = new MediaRecorder(microphoneStream);
+let microphoneStream;
+let mediaRecorder;
+let audioChunks = [];
 
-	           mediaRecorder.addEventListener("stop", () => {
-	               microphoneStream.getTracks().forEach(track => track.stop());
+if (navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window) {
+    recordButton.disabled = false;
+    recorderStatus.textContent = "Ready";
+}
 
-	               recorderStatus.textContent = "Ready";
-	               recordButton.querySelector(".visually-hidden").textContent = "Start recording";
-	           });
+recordButton.addEventListener("click", async () => {
+    if (mediaRecorder?.state === "recording") {
+        mediaRecorder.stop();
+        return;
+    }
 
-	           mediaRecorder.start();
+    try {
+        microphoneStream =
+            await navigator.mediaDevices.getUserMedia({ audio: true });
 
-	           recorderStatus.textContent = "Recording";
-	           recordButton.querySelector(".visually-hidden").textContent =
-	               "Stop recording";
-	       } catch (error) {
-	           console.error("Could not start recording", error);
-	           recorderStatus.textContent = "Microphone unavailable";
-	       }
-	   });
+        mediaRecorder = new MediaRecorder(microphoneStream);
+        audioChunks = [];
+
+        mediaRecorder.addEventListener("dataavailable", event => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        });
+
+        mediaRecorder.addEventListener("stop", () => {
+            const audioBlob = new Blob(audioChunks, {
+                type: mediaRecorder.mimeType
+            });
+
+            console.log("Recorded audio:", audioBlob);
+
+            microphoneStream.getTracks().forEach(track => track.stop());
+            recorderStatus.textContent = "Ready";
+        });
+
+        mediaRecorder.start();
+        recorderStatus.textContent = "Recording";
+    } catch (error) {
+        console.error("Could not start recording", error);
+        recorderStatus.textContent = "Microphone unavailable";
+    }
+});
+
 
 function formatUptime(totalSeconds) {
     const seconds = Math.max(0, Math.floor(totalSeconds));

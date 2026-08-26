@@ -1,22 +1,55 @@
 const serverStatus = document.querySelector("#server-status");
 const statusCopy = serverStatus.querySelector(".status-copy");
 const recordButton = document.querySelector("#record-button");
-
-if (navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window) { // If the browser can access  microphone and record audio, enable the button.
-    recordButton.disabled = false;
-}
-
-
+const recordingTimer = document.querySelector("#recording-timer");
 const recorderStatus = document.querySelector(".recorder-footer p");
+const MAX_RECORDING_MS = 5 * 60 * 1000;
 
+let timerInterval;
+let recordingStartedAt;
 let microphoneStream;
 let mediaRecorder;
 let audioChunks = [];
 
-if (navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window) {
+if (navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window) { // checks browser-support mic
     recordButton.disabled = false;
     recorderStatus.textContent = "Ready";
 }
+
+function updateRecordingTimer() {
+      const elapsedMs = Math.min(
+          performance.now() - recordingStartedAt,
+          MAX_RECORDING_MS
+      );
+
+      const minutes = Math.floor(elapsedMs / 60000);
+      const seconds = Math.floor((elapsedMs % 60000) / 1000);
+      const hundredths = Math.floor((elapsedMs % 1000) / 10);
+
+      recordingTimer.textContent =
+          `${String(minutes).padStart(2, "0")}:` +
+          `${String(seconds).padStart(2, "0")}.` +
+          `${String(hundredths).padStart(2, "0")}`;
+
+      if (
+          elapsedMs >= MAX_RECORDING_MS &&
+          mediaRecorder?.state === "recording"
+      ) {
+          mediaRecorder.stop();
+      }
+  }
+
+ function startRecordingTimer() {
+      recordingStartedAt = performance.now();
+      recordingTimer.textContent = "00:00.00";
+      timerInterval = setInterval(updateRecordingTimer, 50);
+  }
+
+ function stopRecordingTimer() {
+      clearInterval(timerInterval);
+      timerInterval = undefined;
+  }
+
 
 recordButton.addEventListener("click", async () => {
     if (mediaRecorder?.state === "recording") {
@@ -26,19 +59,22 @@ recordButton.addEventListener("click", async () => {
 
     try {
         microphoneStream =
-            await navigator.mediaDevices.getUserMedia({ audio: true });
+            await navigator.mediaDevices.getUserMedia({ audio: true }); //		the live sound coming from the microphone
+
 
         mediaRecorder = new MediaRecorder(microphoneStream);
         audioChunks = [];
 
-        mediaRecorder.addEventListener("dataavailable", event => {
+        mediaRecorder.addEventListener("dataavailable", event => {  //		records the microphoneStream
+
             if (event.data.size > 0) {
-                audioChunks.push(event.data);
+                audioChunks.push(event.data); //				stores pieces of the recorded audio
+
             }
         });
-
         mediaRecorder.addEventListener("stop", () => {
-            const audioBlob = new Blob(audioChunks, {
+			stopRecordingTimer();
+            const audioBlob = new Blob(audioChunks, {  //the completed recording made from all audioChunks
                 type: mediaRecorder.mimeType
             });
 
@@ -49,8 +85,10 @@ recordButton.addEventListener("click", async () => {
         });
 
         mediaRecorder.start();
+		startRecordingTimer();
         recorderStatus.textContent = "Recording";
     } catch (error) {
+		stopRecordingTimer();
         console.error("Could not start recording", error);
         recorderStatus.textContent = "Microphone unavailable";
     }

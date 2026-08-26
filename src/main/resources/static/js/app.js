@@ -8,6 +8,9 @@ const panelStateCopy = document.querySelector(".panel-state-copy");
 const recordButtonLabel = recordButton.querySelector(".visually-hidden"); //TITAN detect the stop control
 
 const MAX_RECORDING_MS = 5 * 60 * 1000;
+const recordingSupported = Boolean(
+    navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window
+);
 
 let timerInterval;
 let recordingStartedAt;
@@ -22,10 +25,30 @@ function setRecordingVisualState(isRecording) {
     panelStateCopy.textContent = isRecording ? "Recording" : "Ready";
 }
 
-if (navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window) { // checks browser-support mic
+function releaseMicrophone() {
+    microphoneStream?.getTracks().forEach(track => track.stop());
+    microphoneStream = undefined;
+}
+
+function finishRecordingSession(footerMessage, panelMessage) {
+    stopRecordingTimer();
+    setRecordingVisualState(false);
+    releaseMicrophone();
+    mediaRecorder = undefined;
+    audioChunks = [];
+    recordButton.disabled = !recordingSupported;
+    recorderStatus.textContent = footerMessage;
+    panelStateCopy.textContent = panelMessage;
+}
+
+if (recordingSupported) { // checks browser-support mic
     recordButton.disabled = false;
     recorderStatus.textContent = "Ready";
     setRecordingVisualState(false);
+} else {
+    setRecordingVisualState(false);
+    recorderStatus.textContent = "Recording unsupported";
+    panelStateCopy.textContent = "Unsupported";
 }
 
 function updateRecordingTimer() {
@@ -47,6 +70,7 @@ function updateRecordingTimer() {
           elapsedMs >= MAX_RECORDING_MS &&
           mediaRecorder?.state === "recording"
       ) {
+          recordButton.disabled = true;
           mediaRecorder.stop();
       }
   }
@@ -65,9 +89,14 @@ function updateRecordingTimer() {
 
 recordButton.addEventListener("click", async () => {
     if (mediaRecorder?.state === "recording") {
+        recordButton.disabled = true;
         mediaRecorder.stop();
         return;
     }
+
+    recordButton.disabled = true;
+    recorderStatus.textContent = "Requesting microphone";
+    panelStateCopy.textContent = "Connecting";
 
     try {
         microphoneStream =
@@ -75,38 +104,49 @@ recordButton.addEventListener("click", async () => {
 
 
         mediaRecorder = new MediaRecorder(microphoneStream);
+        const currentRecorder = mediaRecorder;
+        let sessionFinished = false;
         audioChunks = [];
 
-        mediaRecorder.addEventListener("dataavailable", event => {  //		records the microphoneStream
+        currentRecorder.addEventListener("dataavailable", event => {  //		records the microphoneStream
 
             if (event.data.size > 0) {
                 audioChunks.push(event.data); //				stores pieces of the recorded audio
 
             }
         });
-        mediaRecorder.addEventListener("stop", () => {
-			stopRecordingTimer();
-            setRecordingVisualState(false);
+        currentRecorder.addEventListener("stop", () => {
+            if (sessionFinished) {
+                return;
+            }
+
+            sessionFinished = true;
             const audioBlob = new Blob(audioChunks, {  //the completed recording made from all audioChunks
-                type: mediaRecorder.mimeType
+                type: currentRecorder.mimeType
             });
 
             console.log("Recorded audio:", audioBlob);
-
-            microphoneStream.getTracks().forEach(track => track.stop());
-            recorderStatus.textContent = "Ready";
+            finishRecordingSession("Ready", "Ready");
         });
 
-        mediaRecorder.start();
+        currentRecorder.addEventListener("error", event => {
+            if (sessionFinished) {
+                return;
+            }
+
+            sessionFinished = true;
+            console.error("Recording failed", event.error ?? event);
+            finishRecordingSession("Recording failed", "Error");
+        });
+
+        currentRecorder.start();
 		startRecordingTimer();
         setRecordingVisualState(true);
+        recordButton.disabled = false;
         recorderStatus.textContent = "Recording";
     } catch (error) {
-		stopRecordingTimer();
-        setRecordingVisualState(false);
-        panelStateCopy.textContent = "Unavailable";
         console.error("Could not start recording", error);
-        recorderStatus.textContent = "Microphone unavailable";
+        finishRecordingSession("Microphone unavailable", "Unavailable");
     }
 });
 

@@ -33,7 +33,7 @@
 
         <dl class="system-details">
             <div><dt>Input</dt><dd>Microphone</dd></div>
-            <div><dt>Maximum</dt><dd>01:00</dd></div>
+            <div><dt>Maximum</dt><dd>05:00</dd></div>
             <div><dt>Output</dt><dd>Text</dd></div>
         </dl>
     </section>
@@ -44,13 +44,16 @@
                 <p class="section-code"><span>01</span> Input</p>
                 <h2 id="recorder-title">Microphone</h2>
             </div>
-            <p class="panel-state"><span></span> Ready</p>
+            <p class="panel-state">
+                <span class="panel-state-light" aria-hidden="true"></span>
+                <span class="panel-state-copy">Ready</span>
+            </p>
         </header>
 
         <div class="recording-display">
             <div class="meter meter-one" aria-hidden="true"></div>
             <div class="meter meter-two" aria-hidden="true"></div>
-            <button id="record-button" class="record-button" type="button" disabled>
+            <button id="record-button" class="record-button" type="button" disabled> <!--we will use app.js to enable the button when only the browser supports microphone recording-->
                 <span class="record-centre" aria-hidden="true"></span>
                 <span class="visually-hidden">Start recording</span>
             </button>

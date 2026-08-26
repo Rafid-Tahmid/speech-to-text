@@ -17,7 +17,7 @@ class AdminControllerTests {
     @Autowired
     private MockMvc mockMvc;
 
-    @Test
+    @Test	//Tells JUnit to execute this method as a test
     void uptimeReturnsRequiredInformation() throws Exception {
         mockMvc.perform(get("/api/v1/admin/uptime"))
                 .andExpect(status().isOk())

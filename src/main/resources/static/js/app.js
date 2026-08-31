@@ -170,6 +170,9 @@ recordButton.addEventListener("click", async () => {
                 characterCount.textContent =
                     `${text.length} ${text.length === 1 ? "character" : "characters"}`;
 
+                /* Bring the completed transcription into view for the user. */
+                transcriptText.scrollIntoView({ block: "center" });
+
                 finishRecordingSession("Ready", "Ready");
             } catch (error) {
                 console.error("Audio upload failed", error);

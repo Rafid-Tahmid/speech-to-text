@@ -1,6 +1,10 @@
 package com.rafid.speechtotext.service;
 
+import java.time.Duration;
+
 import com.rafid.speechtotext.model.OpenAiTranscriptionResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpEntity;
@@ -11,11 +15,15 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Profile("!local")
 public class OpenAiTranscriptionService implements TranscriptionService {
+
+	private static final Logger logger = LoggerFactory.getLogger(OpenAiTranscriptionService.class);
 
 	private static final String OPENAI_BASE_URL = "https://api.openai.com";
 	private static final String TRANSCRIPTION_PATH = "/v1/audio/transcriptions";
@@ -53,15 +61,44 @@ public class OpenAiTranscriptionService implements TranscriptionService {
 		requestBody.add("file", new HttpEntity<>(audio.getResource(), fileHeaders));
 		requestBody.add("model", MODEL);
 
-		OpenAiTranscriptionResponse response = restClient.post().uri(TRANSCRIPTION_PATH)
-				.contentType(MediaType.MULTIPART_FORM_DATA).body(requestBody).retrieve()
-				.body(OpenAiTranscriptionResponse.class);
+		long startedAt = System.nanoTime();
 
-		if (response == null || response.text() == null) {
-			throw new IllegalStateException("OpenAI returned an invalid transcription response");
+		/*
+		 * Log only safe request metadata. Never log the API key, audio contents or
+		 * returned transcription.
+		 */
+		logger.info("OpenAI transcription request started: {} bytes, content type {}", audio.getSize(),
+				audio.getContentType());
+
+		try {
+			OpenAiTranscriptionResponse response = restClient.post().uri(TRANSCRIPTION_PATH)
+					.contentType(MediaType.MULTIPART_FORM_DATA).body(requestBody).retrieve()
+					.body(OpenAiTranscriptionResponse.class);
+
+			if (response == null || !StringUtils.hasText(response.text())) {
+				logger.warn("OpenAI returned blank transcription text after {} ms", elapsedMillis(startedAt));
+				throw new IllegalStateException("OpenAI returned no transcription text");
+			}
+
+			logger.info("OpenAI transcription request completed in {} ms with {} characters",
+					elapsedMillis(startedAt), response.text().length());
+
+			return response.text();
 		}
+		catch (RestClientResponseException exception) {
+			logger.warn("OpenAI returned HTTP {} after {} ms", exception.getStatusCode().value(),
+					elapsedMillis(startedAt));
+			throw exception;
+		}
+		catch (RestClientException exception) {
+			logger.warn("OpenAI request failed after {} ms: {}", elapsedMillis(startedAt),
+					exception.getClass().getSimpleName());
+			throw exception;
+		}
+	}
 
-		return response.text();
+	private static long elapsedMillis(long startedAt) {
+		return Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
 	}
 
 	private MediaType resolveContentType(MultipartFile audio) {

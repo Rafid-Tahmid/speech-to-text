@@ -30,9 +30,11 @@ public class OpenAiTranscriptionService implements TranscriptionService {
 	private static final String MODEL = "gpt-4o-mini-transcribe";
 
 	private final RestClient restClient;
+	private final GlobalStatsService globalStatsService;
 
 	public OpenAiTranscriptionService(
 			RestClient.Builder restClientBuilder,
+			GlobalStatsService globalStatsService,
 			@Value("${OPENAI_API_KEY}") String apiKey) {
 
 		/*
@@ -45,6 +47,7 @@ public class OpenAiTranscriptionService implements TranscriptionService {
 
 		this.restClient = restClientBuilder.baseUrl(OPENAI_BASE_URL)
 				.defaultHeaders(headers -> headers.setBearerAuth(apiKey)).build();
+		this.globalStatsService = globalStatsService;
 	}
 
 	@Override
@@ -79,6 +82,16 @@ public class OpenAiTranscriptionService implements TranscriptionService {
 				logger.warn("OpenAI returned blank transcription text after {} ms", elapsedMillis(startedAt));
 				throw new IllegalStateException("OpenAI returned no transcription text");
 			}
+
+			if (response.usage() == null) {
+				throw new IllegalStateException("OpenAI returned no token usage");
+			}
+
+			/*
+			 * Record usage only after OpenAI has returned a valid transcription. The
+			 * shared service protects these counters from concurrent updates.
+			 */
+			globalStatsService.recordUsage(response.usage().inputTokens(), response.usage().outputTokens());
 
 			logger.info("OpenAI transcription request completed in {} ms with {} characters",
 					elapsedMillis(startedAt), response.text().length());

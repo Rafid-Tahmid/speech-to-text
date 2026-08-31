@@ -1,5 +1,7 @@
 package com.rafid.speechtotext;
 
+import com.rafid.speechtotext.model.GlobalStatsResponse;
+import com.rafid.speechtotext.service.GlobalStatsService;
 import com.rafid.speechtotext.service.OpenAiTranscriptionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -33,8 +35,10 @@ class OpenAiTranscriptionServiceTests {
 		 * or realistic API key in the repository.
 		 */
 		String testApiKey = UUID.randomUUID().toString();
+		GlobalStatsService globalStatsService = new GlobalStatsService();
 
-		OpenAiTranscriptionService service = new OpenAiTranscriptionService(restClientBuilder, testApiKey);
+		OpenAiTranscriptionService service = new OpenAiTranscriptionService(restClientBuilder, globalStatsService,
+				testApiKey);
 
 		MockMultipartFile audio = new MockMultipartFile("audio", "recording.webm", "audio/webm",
 				"fake audio contents".getBytes(StandardCharsets.UTF_8));
@@ -59,11 +63,19 @@ class OpenAiTranscriptionServiceTests {
 		String transcription = service.transcribe(audio);
 
 		assertEquals("Expected transcription.", transcription);
+
+		GlobalStatsResponse stats = globalStatsService.getStats();
+		assertEquals(12, stats.inputTokens());
+		assertEquals(3, stats.outputTokens());
+
 		mockServer.verify();
 	}
 
 	@Test
 	void rejectsMissingApiKey() {
-		assertThrows(IllegalArgumentException.class, () -> new OpenAiTranscriptionService(RestClient.builder(), " "));
+		GlobalStatsService globalStatsService = new GlobalStatsService();
+
+		assertThrows(IllegalArgumentException.class,
+				() -> new OpenAiTranscriptionService(RestClient.builder(), globalStatsService, " "));
 	}
 }

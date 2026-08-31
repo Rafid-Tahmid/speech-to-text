@@ -5,8 +5,9 @@ const recordButton = document.querySelector("#record-button");
 const recordingTimer = document.querySelector("#recording-timer");
 const recorderStatus = document.querySelector(".recorder-footer p");
 const panelStateCopy = document.querySelector(".panel-state-copy");
-const recordButtonLabel = recordButton.querySelector(".visually-hidden"); //TITAN detect the stop control
-
+const recordButtonLabel = recordButton.querySelector(".visually-hidden"); //For TITAN to detect the stop control
+const transcriptText = document.querySelector(".transcript-output p");
+const characterCount = document.querySelector(".character-count");
 const MAX_RECORDING_MS = 5 * 60 * 1000;
 const recordingSupported = Boolean(
     navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window
@@ -52,40 +53,70 @@ if (recordingSupported) { // checks browser-support mic
 }
 
 function updateRecordingTimer() {
-      const elapsedMs = Math.min(
-          performance.now() - recordingStartedAt,
-          MAX_RECORDING_MS
-      );
+    const elapsedMs = Math.min(
+        performance.now() - recordingStartedAt,
+        MAX_RECORDING_MS
+    );
 
-      const minutes = Math.floor(elapsedMs / 60000);
-      const seconds = Math.floor((elapsedMs % 60000) / 1000);
-      const hundredths = Math.floor((elapsedMs % 1000) / 10);
+    const minutes = Math.floor(elapsedMs / 60000);
+    const seconds = Math.floor((elapsedMs % 60000) / 1000);
+    const hundredths = Math.floor((elapsedMs % 1000) / 10);
 
-      recordingTimer.textContent =
-          `${String(minutes).padStart(2, "0")}:` +
-          `${String(seconds).padStart(2, "0")}.` +
-          `${String(hundredths).padStart(2, "0")}`;
+    recordingTimer.textContent =
+        `${String(minutes).padStart(2, "0")}:` +
+        `${String(seconds).padStart(2, "0")}.` +
+        `${String(hundredths).padStart(2, "0")}`;
 
-      if (
-          elapsedMs >= MAX_RECORDING_MS &&
-          mediaRecorder?.state === "recording"
-      ) {
-          recordButton.disabled = true;
-          mediaRecorder.stop();
-      }
-  }
+    if (
+        elapsedMs >= MAX_RECORDING_MS &&
+        mediaRecorder?.state === "recording"
+    ) {
+        recordButton.disabled = true;
+        mediaRecorder.stop();
+    }
+}
 
- function startRecordingTimer() {
-      recordingStartedAt = performance.now();
-      recordingTimer.textContent = "00:00.00";
-      timerInterval = setInterval(updateRecordingTimer, 50);
-  }
+function startRecordingTimer() {
+    recordingStartedAt = performance.now();
+    recordingTimer.textContent = "00:00.00";
+    timerInterval = setInterval(updateRecordingTimer, 50);
+}
 
- function stopRecordingTimer() {
-      clearInterval(timerInterval);
-      timerInterval = undefined;
-  }
+function stopRecordingTimer() {
+    clearInterval(timerInterval);
+    timerInterval = undefined;
+}
 
+async function uploadRecording(audioBlob) {
+    const formData = new FormData();
+
+    /*
+     * "audio" must match @RequestParam("audio") in the Java controller.
+     * The Blob becomes a file-like multipart request part.
+     */
+    formData.append("audio", audioBlob, "recording.webm");
+
+    const response = await fetch("/api/v1/transcriptions", {
+        method: "POST",
+        body: formData
+    });
+
+    /*
+     * Do not manually set the Content-Type header.
+     * The browser adds multipart/form-data and its required boundary.
+     */
+    if (!response.ok) {
+        throw new Error(`Upload failed with HTTP ${response.status}`);
+    }
+
+    const transcription = await response.json();
+
+    if (typeof transcription.text !== "string") {
+        throw new Error("The server returned an invalid transcription");
+    }
+
+    return transcription.text;
+}
 
 recordButton.addEventListener("click", async () => {
     if (mediaRecorder?.state === "recording") {
@@ -115,7 +146,7 @@ recordButton.addEventListener("click", async () => {
 
             }
         });
-        currentRecorder.addEventListener("stop", () => {
+        currentRecorder.addEventListener("stop", async () => {
             if (sessionFinished) {
                 return;
             }
@@ -125,8 +156,25 @@ recordButton.addEventListener("click", async () => {
                 type: currentRecorder.mimeType
             });
 
-            console.log("Recorded audio:", audioBlob);
-            finishRecordingSession("Ready", "Ready");
+            /*
+             * Release the microphone and clear the recording state before waiting
+             * for the network request. The local audioBlob remains available.
+             */
+            finishRecordingSession("Uploading audio", "Uploading");
+            recordButton.disabled = true;
+
+            try {
+                const text = await uploadRecording(audioBlob);
+
+                transcriptText.textContent = text;
+                characterCount.textContent =
+                    `${text.length} ${text.length === 1 ? "character" : "characters"}`;
+
+                finishRecordingSession("Ready", "Ready");
+            } catch (error) {
+                console.error("Audio upload failed", error);
+                finishRecordingSession("Upload failed", "Error");
+            }
         });
 
         currentRecorder.addEventListener("error", event => {
@@ -140,7 +188,7 @@ recordButton.addEventListener("click", async () => {
         });
 
         currentRecorder.start();
-		startRecordingTimer();
+        startRecordingTimer();
         setRecordingVisualState(true);
         recordButton.disabled = false;
         recorderStatus.textContent = "Recording";

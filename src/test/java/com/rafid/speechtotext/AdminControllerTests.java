@@ -60,4 +60,16 @@ class AdminControllerTests {
 				.andExpect(jsonPath("$.message").value("Graceful shutdown is already in progress."))
 				.andExpect(jsonPath("$.path").value("/api/v1/admin/shutdown"));
 	}
+
+	@Test
+	void unexpectedUptimeFailureReturnsYamlInternalServerError() throws Exception {
+		/* Verifies the exact standard 500 shape required by assignment1api.yaml. */
+		when(lifecycleService.getUptime()).thenThrow(new IllegalStateException("Internal timing detail"));
+
+		mockMvc.perform(get("/api/v1/admin/uptime")).andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.timestamp").isString()).andExpect(jsonPath("$.status").value(500))
+				.andExpect(jsonPath("$.error").value("Internal Server Error"))
+				.andExpect(jsonPath("$.message").value("An unexpected server error occurred."))
+				.andExpect(jsonPath("$.path").value("/api/v1/admin/uptime"));
+	}
 }

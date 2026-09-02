@@ -1,30 +1,45 @@
-/*
- * These two annotations combine to create the required URL:
-  @RequestMapping("/api/v1/admin")
-  @GetMapping("/uptime")
-  The resulting path is: 	/api/v1/admin/uptime 
- */
-
 package com.rafid.speechtotext.controller;
 
-  import com.rafid.speechtotext.model.UptimeResponse;
-  import com.rafid.speechtotext.service.ServerLifecycleService;
-  import org.springframework.web.bind.annotation.GetMapping;
-  import org.springframework.web.bind.annotation.RequestMapping;
-  import org.springframework.web.bind.annotation.RestController;
+import java.time.Instant;
 
-  @RestController	//This class receives web requests, and its returned objects should be sent back as response data as JSON.
-  @RequestMapping("/api/v1/admin")
-  public class AdminController {	//  is constructor dependency injection. Spring creates the service and supplies it to the controller.
+import com.rafid.speechtotext.model.ErrorResponse;
+import com.rafid.speechtotext.model.ShutdownResponse;
+import com.rafid.speechtotext.model.UptimeResponse;
+import com.rafid.speechtotext.service.ApplicationShutdownService;
+import com.rafid.speechtotext.service.ServerLifecycleService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-      private final ServerLifecycleService lifecycleService;
+@RestController
+@RequestMapping("/api/v1/admin")
+public class AdminController {
 
-      public AdminController(ServerLifecycleService lifecycleService) {
-          this.lifecycleService = lifecycleService;
-      }
+	private final ServerLifecycleService lifecycleService;
+	private final ApplicationShutdownService shutdownService;
 
-      @GetMapping("/uptime")
-      public UptimeResponse getUptime() {
-          return lifecycleService.getUptime();
-      }
-  }
+	public AdminController(ServerLifecycleService lifecycleService, ApplicationShutdownService shutdownService) {
+		this.lifecycleService = lifecycleService;
+		this.shutdownService = shutdownService;
+	}
+
+	@GetMapping("/uptime")
+	public UptimeResponse getUptime() {
+		return lifecycleService.getUptime();
+	}
+
+	@PostMapping("/shutdown")
+	public ResponseEntity<?> shutdownServer() {
+		if (shutdownService.requestShutdown()) {
+			return ResponseEntity.accepted().body(new ShutdownResponse("Graceful shutdown requested."));
+		}
+
+		ErrorResponse errorResponse = new ErrorResponse(Instant.now(), HttpStatus.CONFLICT.value(), "Conflict",
+				"Graceful shutdown is already in progress.", "/api/v1/admin/shutdown");
+
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+	}
+}

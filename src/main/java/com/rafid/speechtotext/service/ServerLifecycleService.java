@@ -1,41 +1,43 @@
-/*
-  When Spring creates the service, this line records the startup time:
-  private final Instant serverStart = Instant.now();
-
-  Later, getUptime():
-  1. Gets the current time.
-  2. Calculates the difference between the start time and current time.
-  3. Converts the duration into seconds.
-  4. Returns an UptimeResponse.
-
-  @Service tells Spring to create and manage one instance of this class.
- */
-
-
 package com.rafid.speechtotext.service;
-
-import com.rafid.speechtotext.model.UptimeResponse;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.rafid.speechtotext.model.UptimeResponse;
+import org.springframework.boot.web.server.context.WebServerInitializedEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
 
 @Service
 public class ServerLifecycleService {
 
-    private final Instant serverStart = Instant.now(); //runs when Spring creates the service object. It stores the startup time.
+	private final AtomicReference<Instant> serverStart = new AtomicReference<>();
 
-    public UptimeResponse getUptime() {
-        Instant now = Instant.now();
-        Duration uptime = Duration.between(serverStart, now); //calculates the difference between serverStart and now
+	/*
+	 * Spring publishes this event after the embedded web server is ready. The event
+	 * timestamp therefore represents the server's usable start time.
+	 */
+	@EventListener
+	public void recordServerStart(WebServerInitializedEvent event) {
+		Instant readyTime = Instant.ofEpochMilli(event.getTimestamp());
 
-        double uptimeSeconds =
-                uptime.getSeconds() + uptime.getNano() / 1_000_000_000.0;  //converts duration into seconds,
+		serverStart.compareAndSet(null, readyTime);
+	}
 
-        return new UptimeResponse(	//creates the record and puts the three values into UptimeResponse.java
-                serverStart,
-                now,
-                uptimeSeconds
-        );
-    }
+	public UptimeResponse getUptime() {
+		Instant now = Instant.now();
+
+		/*
+		 * The fallback handles the extremely small possibility that an uptime request
+		 * arrives before the initialization event is processed.
+		 */
+		Instant start = serverStart.updateAndGet(existingStart -> existingStart == null ? now : existingStart);
+
+		Duration uptime = Duration.between(start, now);
+
+		double uptimeSeconds = uptime.getSeconds() + uptime.getNano() / 1_000_000_000.0;
+
+		return new UptimeResponse(start, now, uptimeSeconds);
+	}
 }

@@ -1,5 +1,6 @@
 package com.rafid.speechtotext.controller;
 
+import com.rafid.speechtotext.exception.InvalidAudioUploadException;
 import com.rafid.speechtotext.model.TranscriptionResponse;
 import com.rafid.speechtotext.service.TranscriptionService;
 import org.springframework.http.MediaType;
@@ -31,6 +32,9 @@ public class TranscriptionController {
 	 */
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public TranscriptionResponse transcribe(@RequestParam("audio") MultipartFile audio) {
+		if (audio.isEmpty()) {
+			throw new InvalidAudioUploadException();
+		}
 
 		String text = transcriptionService.transcribe(audio);
 

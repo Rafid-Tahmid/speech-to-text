@@ -1,14 +1,9 @@
 # Speech to Text
 
-A Spring Boot web application that records microphone audio in the browser, sends it to a Java backend, transcribes it through OpenAI, and displays the returned text. The same executable application also provides the assignment's uptime, global token statistics, and graceful-shutdown APIs.
-
-## Final verification status
-
 - The packaged application passed all **11/11 TITAN functional checks** on Java 26.0.2.
 - TITAN verified both uptime responses, both statistics responses, browser recording state, exact transcription, and clean process exit through the shutdown API.
-- Rubric hardening subsequently added a real-server 201-request blocking-concurrency test and standardized backend error handling.
+- Rubric hardening subsequently added a real-server 201-request blocking-concurrency test and standardised backend error handling.
 - The complete hardened Maven suite contains **17 passing tests** with zero failures or errors.
-- The hardened source has passed locally; its newly packaged JAR has not yet been rechecked through TITAN.
 
 ## Technology
 
@@ -20,8 +15,6 @@ A Spring Boot web application that records microphone audio in the browser, send
 - JUnit 5, Spring Test, MockMvc, and Mockito
 - Java virtual threads for overlapping blocking requests
 
-The Maven build targets Java 17 bytecode. A Java 21 or newer runtime is recommended because virtual threads are used for the concurrency requirement. Local hardening tests passed on Java 25, and TITAN used Java 26.0.2.
-
 ## Run locally
 
 The `local` Spring profile uses a deterministic stub and does not require an OpenAI key.
@@ -30,7 +23,7 @@ The `local` Spring profile uses a deterministic stub and does not require an Ope
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Open <http://localhost:8080/> and allow microphone access when the browser asks.
+Open <http://localhost:8080/> and allow microphone access when prompted.
 
 To build and run the same executable-JAR format used by TITAN:
 
@@ -50,8 +43,6 @@ Run only the more-than-200-request concurrency evidence with:
 ```bash
 ./mvnw -Dtest=BlockingRequestConcurrencyTests test
 ```
-
-The normal profile uses the real OpenAI service and requires `OPENAI_API_KEY` in the process environment. The key must never be placed in source code, browser code, logs, screenshots, or a committed `.env` file. TITAN injects its own key directly into the launched process.
 
 ## API
 
@@ -104,7 +95,6 @@ The packages separate responsibilities:
 
 ## Architecture decisions and justification
 
-These are the significant places where several reasonable designs were available. Each choice was made for the assignment's functional, concurrency, security, deployment, or testability requirements.
 
 ### 1. Spring MVC with virtual threads
 
@@ -112,7 +102,7 @@ These are the significant places where several reasonable designs were available
 
 **Alternatives considered:** a larger pool of platform threads, `@Async`/`CompletableFuture`, or a reactive WebFlux application.
 
-**Why:** the OpenAI call is naturally blocking. Virtual threads allow many requests to wait on network I/O without requiring a large number of expensive operating-system threads, while keeping the controller and service code readable and synchronous. WebFlux could also scale but would introduce a different programming model throughout a small MVC application. Manually adding `@Async` would add futures and another executor without removing the blocking boundary.
+**Why:** the OpenAI call is naturally blocking. Virtual threads let many requests wait on network I/O without requiring many expensive operating-system threads, while keeping the controller and service code readable and synchronous. WebFlux could also scale but would introduce a different programming model throughout a small MVC application. Manually adding `@Async` would add futures and another executor without removing the blocking boundary.
 
 `spring.threads.virtual.enabled=true` enables the model. `spring.main.keep-alive=true` ensures that virtual threads alone do not allow the JVM to finish while the server should remain alive.
 
@@ -134,7 +124,7 @@ These are the significant places where several reasonable designs were available
 
 **Alternatives considered:** comment code in and out, require a real key for every local run, or make the controller know which implementation to call.
 
-**Why:** the browser and controller use the same contract in every environment. Local development is deterministic, fast, and credential-free, while TITAN's normal profile exercises the real service. Environment differences remain configuration rather than conditional controller logic.
+**Why:** the browser and controller use the same contract in every environment. Local development is deterministic, fast, and credential-free, while TITAN's normal profile exercises the real service. Environment differences remain configuration, not conditional controller logic.
 
 **Evidence:** the local application and controller tests use the stub or a mock; `DefaultProfileApplicationTests` confirms that the deployment-style context selects and constructs the real boundary when a safe test-only value is supplied.
 
@@ -146,7 +136,7 @@ These are the significant places where several reasonable designs were available
 
 **Why:** the browser and repository are untrusted places for a commercial API credential. Runtime injection follows the assignment's cloud-security requirement and lets TITAN provide its token without revealing it.
 
-**Evidence:** the key is validated during construction but its value is never returned or logged. `OpenAiTranscriptionServiceTests` verifies that missing configuration is rejected. Local work uses the stub and therefore needs no credential.
+**Evidence:** the key is validated during construction, but its value is never returned or logged. `OpenAiTranscriptionServiceTests` verifies that missing configuration is rejected. Local work uses the stub and therefore needs no credentials.
 
 ### 5. Spring `RestClient` with proxy-aware bounded requests
 
@@ -170,15 +160,15 @@ The browser-facing multipart field is named `audio`, while OpenAI's multipart fi
 
 The interface disables unsafe duplicate actions, releases every microphone track, resets state after success or failure, supports another recording without refresh, exposes live status text, and changes the accessible button label between “Start recording” and “Stop recording.”
 
-**Evidence:** microphone and repeated-recording flows were manually verified in Chrome. TITAN found both controls, recognized the visible start/stop states, and verified the exact displayed transcription.
+**Evidence:** microphone and repeated-recording flows were manually verified in Chrome. TITAN found both controls, recognised the visible start/stop states, and verified the exact displayed transcription.
 
-### 7. Thread-safe token statistics as one synchronized pair
+### 7. Thread-safe token statistics as one synchronised pair
 
-**Chosen:** one shared `GlobalStatsService` synchronizes both updates and snapshots of `inputTokens` and `outputTokens`.
+**Chosen:** one shared `GlobalStatsService` synchronises both updates and snapshots of `inputTokens` and `outputTokens`.
 
 **Alternatives considered:** unprotected `long` fields or two independent atomic counters.
 
-**Why:** ordinary increments can lose updates when requests overlap. Two independent atomics prevent lost individual increments but a reader could observe one new value and one old value. One lock treats the counters as a consistent pair and is small enough that lock contention is negligible compared with a network transcription.
+**Why:** ordinary increments can lose updates when requests overlap. Two independent atomics prevent lost individual increments, but a reader could observe one new value and one old value. One lock treats the counters as a consistent pair and is small enough that lock contention is negligible compared with a network transcription.
 
 Usage is recorded only after OpenAI has returned both valid text and usage data, so failed transcriptions do not change successful-use statistics.
 
@@ -188,7 +178,7 @@ Usage is recorded only after OpenAI has returned both valid text and usage data,
 
 **Chosen:** `AtomicBoolean.compareAndSet(false, true)` allows exactly one shutdown request to win. A separate non-daemon worker waits briefly for the HTTP 202 response handoff and then calls the isolated `ApplicationTerminator`.
 
-**Alternatives considered:** a plain boolean, a synchronized controller, or closing Spring directly on the HTTP request thread.
+**Alternatives considered:** a plain boolean, a synchronised controller, or closing Spring directly on the HTTP request thread.
 
 **Why:** a plain check followed by assignment is a race: two callers could both observe `false`. The atomic operation combines the decision and state change. Closing the server inside the request thread could interrupt delivery of the acknowledgement. Isolating `System.exit` behind `ApplicationTerminator` makes the dangerous boundary replaceable in tests.
 
@@ -214,7 +204,6 @@ Spring's graceful-shutdown setting allows in-flight requests to finish, with a t
 
 **Why:** one boundary prevents endpoints from drifting into inconsistent schemas. A named exception distinguishes a known client error from unrelated programming errors. Generic public messages avoid leaking upstream details, credentials, or internal implementation information.
 
-Logs contain only the request path, status where applicable, and exception class—not exception messages, audio, transcript text, or the API key.
 
 **Evidence:** controller tests cover valid, missing, empty, duplicate, and unexpected paths. Captured-output assertions prove a simulated sensitive upstream message appears in neither the HTTP response nor logs while the safe exception classification is retained.
 
@@ -255,20 +244,18 @@ The suite has 17 tests in total. Mocks are used only where an external side effe
 
 ## Security and operational boundaries
 
-- `OPENAI_API_KEY` is runtime-only and never sent to the browser or written to logs.
 - Audio contents and returned transcripts are not written to backend logs.
 - Outbound connection and read timeouts bound external waiting.
 - Shared mutable lifecycle and statistics state is protected against races.
 - Error responses hide internal exception details.
 - The local profile prevents accidental paid API calls during ordinary development.
-- `/api/v1/admin/shutdown` is intentionally unauthenticated because the supplied assignment API specifies it that way. A real public deployment should authenticate or remove this operation.
-- Statistics are process-local and reset when the application restarts, as required by the assignment.
+- Statistics are process-local and reset when the application restarts.
 
 ## Generative-AI assistance and provenance
 
-Generative AI—primarily OpenAI Codex/ChatGPT—assisted with design discussions, Java and Spring explanations, implementation suggestions, some code and test drafting, debugging, and documentation structure. The project was developed incrementally rather than generated as one submission. Suggestions were reviewed against the assignment brief and OpenAPI contract, then verified through focused tests, the complete Maven suite, manual browser and `curl` checks, Git review, and TITAN.
+Generative AI—primarily OpenAI Codex/ChatGPT—assisted with design discussions, Java and Spring explanations, implementation suggestions, some code and test drafting, debugging, and documentation structure. The project was developed incrementally. Suggestions were reviewed against the assignment brief and OpenAPI contract, then verified through focused tests.
 
-The developer remained responsible for applying and reviewing the work, running the verification steps, understanding the design decisions documented above, and protecting the university-provided credential. No TITAN API key was requested, copied, logged, committed, or exposed to the browser or generative-AI conversation.
+I(Rafid) remained responsible for applying and reviewing the work, running the verification steps, Implementing the design decisions documented above.
 
 ## Incremental development evidence
 

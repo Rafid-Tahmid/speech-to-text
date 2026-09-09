@@ -242,6 +242,17 @@ Spring's graceful-shutdown setting allows in-flight requests to finish, with a t
 
 The suite has 17 tests in total. Mocks are used only where an external side effect would make a focused test unsafe or unreliable. The real-server concurrency test does not mock the web layer, and TITAN supplies the final browser, network, OpenAI, executable-JAR, and process-lifecycle evidence.
 
+Concurrency recheck on 9 September 2026: the test admits each connection before
+starting the next, while holding every transcription until all 201 overlap.
+This avoids a burst of connection attempts overflowing a local TCP listen queue;
+it tests concurrent blocking request processing, not connection-burst capacity.
+Client connection errors are included in assertion diagnostics. All 201 responses
+must still succeed within the original ten-second limit. The full 17-test suite
+passed, including the concurrency test in 0.636 seconds. As a negative control,
+running the focused test with `-Dspring.threads.virtual.enabled=false` failed at
+exactly 200 overlapping requests, confirming that the test detects insufficient
+server concurrency.
+
 ## Security and operational boundaries
 
 - Audio contents and returned transcripts are not written to backend logs.

@@ -8,10 +8,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -49,6 +51,9 @@ class BlockingRequestConcurrencyTests {
 	 * TranscriptionController. The blocking service holds every request until all
 	 * 201 have entered, proving that they overlap instead of being handled only in
 	 * small sequential batches.
+	 * Connections are admitted one at a time to avoid overflowing the operating
+	 * system's TCP listen backlog. No transcription is released during admission.
+	 * This diagnostic refinement was developed with OpenAI Codex assistance.
 	 */
 	@Test
 	void handlesMoreThanTwoHundredSimultaneousBlockingRequests() throws Exception {
@@ -56,35 +61,33 @@ class BlockingRequestConcurrencyTests {
 		HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
 		ExecutorService requestExecutor = Executors.newFixedThreadPool(REQUEST_COUNT);
-		CountDownLatch clientsReady = new CountDownLatch(REQUEST_COUNT);
-		CountDownLatch startRequests = new CountDownLatch(1);
 		List<Future<HttpResponse<String>>> responses = new ArrayList<>();
+		ConcurrentLinkedQueue<String> requestFailures = new ConcurrentLinkedQueue<>();
 
 		try {
+			long startedAt = System.nanoTime();
+			long deadline = startedAt + TEST_TIMEOUT.toNanos();
+
 			for (int requestNumber = 0; requestNumber < REQUEST_COUNT; requestNumber++) {
 				int currentRequest = requestNumber;
 
 				responses.add(requestExecutor.submit(() -> {
-					clientsReady.countDown();
-
-					if (!startRequests.await(5, TimeUnit.SECONDS)) {
-						throw new IllegalStateException("HTTP clients did not start together");
+					try {
+						return httpClient.send(createMultipartRequest(currentRequest),
+								HttpResponse.BodyHandlers.ofString());
+					} catch (Exception exception) {
+						requestFailures.add(exception.toString() + "; cause=" + exception.getCause());
+						throw exception;
 					}
-
-					return httpClient.send(createMultipartRequest(currentRequest),
-							HttpResponse.BodyHandlers.ofString());
 				}));
+				assertTrue(blockingService.awaitNextRequest(deadline - System.nanoTime()),
+						() -> "Request " + currentRequest + " did not enter the blocking service; active peak: "
+								+ blockingService.maximumConcurrentRequests() + "; client failures: " + requestFailures);
 			}
 
-			assertTrue(clientsReady.await(5, TimeUnit.SECONDS), "All HTTP clients should be ready");
-
-			long startedAt = System.nanoTime();
-
-			startRequests.countDown();
-
 			assertTrue(blockingService.awaitAllRequests(TEST_TIMEOUT),
-					"All 201 requests should enter the blocking service; maximum observed was "
-							+ blockingService.maximumConcurrentRequests());
+					() -> "All 201 requests should enter the blocking service; maximum observed was "
+							+ blockingService.maximumConcurrentRequests() + "; client failures: " + requestFailures);
 
 			assertEquals(REQUEST_COUNT, blockingService.maximumConcurrentRequests(),
 					"All requests should overlap before being released");
@@ -103,7 +106,6 @@ class BlockingRequestConcurrencyTests {
 			assertTrue(elapsedMillis < TEST_TIMEOUT.toMillis(),
 					"The concurrent requests took too long: " + elapsedMillis + " ms");
 		} finally {
-			startRequests.countDown();
 			blockingService.releaseRequests();
 			requestExecutor.shutdownNow();
 
@@ -138,6 +140,7 @@ class BlockingRequestConcurrencyTests {
 
 		private final CountDownLatch requestsEntered;
 		private final CountDownLatch releaseRequests = new CountDownLatch(1);
+		private final Semaphore requestArrivals = new Semaphore(0);
 
 		private final AtomicInteger activeRequests = new AtomicInteger();
 
@@ -154,6 +157,7 @@ class BlockingRequestConcurrencyTests {
 			maximumActiveRequests.accumulateAndGet(currentActive, Math::max);
 
 			requestsEntered.countDown();
+			requestArrivals.release();
 
 			try {
 				if (!releaseRequests.await(20, TimeUnit.SECONDS)) {
@@ -173,6 +177,10 @@ class BlockingRequestConcurrencyTests {
 		boolean awaitAllRequests(Duration timeout) throws InterruptedException {
 
 			return requestsEntered.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+		}
+
+		boolean awaitNextRequest(long remainingNanos) throws InterruptedException {
+			return requestArrivals.tryAcquire(Math.max(0, remainingNanos), TimeUnit.NANOSECONDS);
 		}
 
 		int maximumConcurrentRequests() {

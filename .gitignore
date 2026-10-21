@@ -12,6 +12,9 @@ target/
 .env.*
 !.env.example
 
+# Local assignment material, working notes, and submission archives
+/Helper folder/
+
 # Local Spring configuration that may contain secrets
 application-local.properties
 application-local.yml
